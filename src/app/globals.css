@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+:root {
+  --background: #050505;
+  --foreground: rgba(255, 255, 255, 0.6);
+  --foreground-heading: rgba(255, 255, 255, 0.9);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--foreground-heading);
+  letter-spacing: -0.02em;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Hide scrollbar for aesthetics */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
