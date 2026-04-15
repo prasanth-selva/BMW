@@ -230,7 +230,7 @@ export default function BMWScrollSequence() {
             <div className="flex flex-col items-center gap-4 transition-all">
               <div className="w-8 h-8 md:w-10 md:h-10 border-2 border-white/20 border-t-white rounded-full animate-spin" />
               <p className="text-xs md:text-sm tracking-widest uppercase text-white/50 animate-pulse mt-4">
-                Loading Engine ... {loadProgress}%
+                Engine Starting... {loadProgress}%
               </p>
             </div>
           ) : (
