@@ -18,7 +18,6 @@
 
 # Large media files that shouldn't be checked into git
 hero.zip
-public/videos/*.mp4
 /out/
 
 # production
