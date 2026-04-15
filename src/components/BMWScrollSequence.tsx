@@ -39,12 +39,12 @@ export default function BMWScrollSequence() {
         const img = new Image();
         const paddedIndex = i.toString().padStart(3, "0");
         img.src = `/hero/ezgif-frame-${paddedIndex}.png`;
-        
+
         const handleLoad = () => {
           loadedCount++;
           setLoadProgress(Math.round((loadedCount / totalFrames) * 100));
           if (loadedCount === totalFrames) {
-             setLoaded(true);
+            setLoaded(true);
           }
         };
 
@@ -80,7 +80,7 @@ export default function BMWScrollSequence() {
       // Draw image to cover or contain
       const targetRatio = canvas.width / canvas.height;
       const imgRatio = img.width / img.height;
-      
+
       let drawWidth = canvas.width;
       let drawHeight = canvas.height;
       let offsetX = 0;
@@ -119,7 +119,7 @@ export default function BMWScrollSequence() {
     const audioEl = document.getElementById("bg-music") as HTMLAudioElement;
     if (audioEl) {
       audioEl.volume = 0.5;
-      audioEl.play().catch(() => {});
+      audioEl.play().catch(() => { });
       window.dispatchEvent(new Event("music-started"));
     }
     setEntered(true);
@@ -145,15 +145,15 @@ export default function BMWScrollSequence() {
   return (
     <div ref={containerRef} className="h-[200vh] bg-[#050505]" style={{ position: "relative" }}>
       <div className="sticky top-0 h-screen w-full overflow-hidden">
-        
+
         {/* Content Layer (Canvas + UI) */}
         <div className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ${entered ? "opacity-100" : "opacity-0"}`}>
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
-          
+
           {entered && (
             <div className="absolute inset-0 pointer-events-none p-8 md:p-16 lg:p-24 w-full h-full">
               {/* 0% Section - Top Centered */}
-              <motion.div 
+              <motion.div
                 style={{ opacity: titleOpacity, y: titleY }}
                 className="absolute top-1/4 left-0 w-full flex flex-col items-center justify-center text-center px-4"
               >
@@ -165,7 +165,7 @@ export default function BMWScrollSequence() {
               </motion.div>
 
               {/* 30% Section - Left Aligned vertically centered */}
-              <motion.div 
+              <motion.div
                 style={{ opacity: text1Opacity, y: text1Y }}
                 className="absolute top-1/2 -translate-y-1/2 left-4 md:left-24 w-11/12 md:max-w-sm"
               >
@@ -178,7 +178,7 @@ export default function BMWScrollSequence() {
               </motion.div>
 
               {/* 60% Section - Right Bottom Aligned */}
-              <motion.div 
+              <motion.div
                 style={{ opacity: text2Opacity, y: text2Y }}
                 className="absolute bottom-1/4 right-4 md:right-24 w-11/12 md:max-w-sm text-right"
               >
@@ -191,7 +191,7 @@ export default function BMWScrollSequence() {
               </motion.div>
 
               {/* 90% Section - Bottom Centered */}
-              <motion.div 
+              <motion.div
                 style={{ opacity: text3Opacity, y: text3Y }}
                 className="absolute bottom-32 left-0 w-full flex flex-col items-center justify-center text-center px-4"
               >
@@ -204,17 +204,16 @@ export default function BMWScrollSequence() {
         </div>
 
         {/* Loading / Gate Layer */}
-        <div 
-          className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050505] text-white transition-opacity duration-1000 ${
-            entered ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"
-          }`}
+        <div
+          className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050505] text-white transition-opacity duration-1000 ${entered ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"
+            }`}
         >
           {/* Authentic BMW SVG Logo */}
           <div className="mb-12 drop-shadow-xl relative hover:scale-105 transition-transform duration-700">
             <svg width="120" height="120" viewBox="0 0 100 100">
               {/* Outer ring */}
-              <circle cx="50" cy="50" r="48" fill="#050505" stroke="#ccc" strokeWidth="3"/>
-              <circle cx="50" cy="50" r="32" fill="#050505" stroke="#ccc" strokeWidth="1"/>
+              <circle cx="50" cy="50" r="48" fill="#050505" stroke="#ccc" strokeWidth="3" />
+              <circle cx="50" cy="50" r="32" fill="#050505" stroke="#ccc" strokeWidth="1" />
               {/* Quadrants */}
               <path d="M50 18 A32 32 0 0 1 82 50 L50 50 Z" fill="#fff" />
               <path d="M82 50 A32 32 0 0 1 50 82 L50 50 Z" fill="#0066b1" />
@@ -235,14 +234,14 @@ export default function BMWScrollSequence() {
               </p>
             </div>
           ) : (
-             <motion.button 
-               initial={{ opacity: 0, y: 10 }}
-               animate={{ opacity: 1, y: 0 }}
-               onClick={handleEnter}
-               className="px-10 py-4 bg-white text-black font-semibold uppercase tracking-[0.2em] text-xs md:text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_60px_rgba(255,255,255,0.3)] rounded-sm"
-             >
-                Start Experience
-             </motion.button>
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={handleEnter}
+              className="px-10 py-4 bg-white text-black font-semibold uppercase tracking-[0.2em] text-xs md:text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_60px_rgba(255,255,255,0.3)] rounded-sm"
+            >
+              Start Experience
+            </motion.button>
           )}
         </div>
 
