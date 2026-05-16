@@ -11,6 +11,9 @@ export default function BMWScrollSequence() {
   const [entered, setEntered] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
   const totalFrames = 300; // Using the 300 existing webp frames in hero/
+  const minReadyFrames = Math.min(24, totalFrames); // Allow entry once this many frames are ready.
+  const loadedFlagsRef = useRef<boolean[]>(Array.from({ length: totalFrames }, () => false));
+  const readyTriggeredRef = useRef(false);
 
   // Framer motion scroll tracking
   const { scrollYProgress } = useScroll({
@@ -40,16 +43,24 @@ export default function BMWScrollSequence() {
         const paddedIndex = i.toString().padStart(3, "0");
         img.src = `/hero/ezgif-frame-${paddedIndex}.webp`;
 
-        const handleLoad = () => {
+        const index = i - 1;
+        const handleLoad = (isOk: boolean) => {
           loadedCount++;
+          if (isOk) {
+            loadedFlagsRef.current[index] = true;
+          }
           setLoadProgress(Math.round((loadedCount / totalFrames) * 100));
+          if (!readyTriggeredRef.current && loadedCount >= minReadyFrames) {
+            readyTriggeredRef.current = true;
+            setLoaded(true);
+          }
           if (loadedCount === totalFrames) {
             setLoaded(true);
           }
         };
 
-        img.onload = handleLoad;
-        img.onerror = handleLoad;
+        img.onload = () => handleLoad(true);
+        img.onerror = () => handleLoad(false);
         loadedImages.push(img);
       }
       setImages(loadedImages);
@@ -74,7 +85,11 @@ export default function BMWScrollSequence() {
 
     const renderFrame = (index: number) => {
       const idx = Math.min(totalFrames - 1, Math.max(0, Math.floor(index)));
-      const img = images[idx];
+      let drawIndex = idx;
+      while (drawIndex > 0 && !loadedFlagsRef.current[drawIndex]) {
+        drawIndex--;
+      }
+      const img = images[drawIndex];
       if (!img || !img.complete || img.naturalWidth === 0) return;
 
       // Draw image to cover or contain
