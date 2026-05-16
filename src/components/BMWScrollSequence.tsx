@@ -158,7 +158,7 @@ export default function BMWScrollSequence() {
   const text3Y = useTransform(scrollYProgress, [0.8, 0.9], [50, 0], { clamp: true });
 
   return (
-    <div ref={containerRef} className="h-[200vh] bg-[#050505]" style={{ position: "relative" }}>
+    <div ref={containerRef} className="h-[500vh] bg-[#050505]" style={{ position: "relative" }}>
       <div className="sticky top-0 h-screen w-full overflow-hidden">
 
         {/* Content Layer (Canvas + UI) */}
