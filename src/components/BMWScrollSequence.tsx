@@ -10,7 +10,7 @@ export default function BMWScrollSequence() {
   const [loaded, setLoaded] = useState(false);
   const [entered, setEntered] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
-  const totalFrames = 300; // Using the 300 existing png frames in hero/
+  const totalFrames = 300; // Using the 300 existing webp frames in hero/
 
   // Framer motion scroll tracking
   const { scrollYProgress } = useScroll({
@@ -38,7 +38,7 @@ export default function BMWScrollSequence() {
       for (let i = 1; i <= totalFrames; i++) {
         const img = new Image();
         const paddedIndex = i.toString().padStart(3, "0");
-        img.src = `/hero/ezgif-frame-${paddedIndex}.png`;
+        img.src = `/hero/ezgif-frame-${paddedIndex}.webp`;
 
         const handleLoad = () => {
           loadedCount++;
