@@ -33,41 +33,58 @@ export default function BMWScrollSequence() {
       window.scrollTo(0, 0);
     }
 
-    // Preload images
-    const loadImages = async () => {
-      const loadedImages: HTMLImageElement[] = [];
-      let loadedCount = 0;
+    // Keep network pressure bounded and load in frame order so the opening is
+    // ready first; remaining frames continue loading while the user scrolls.
+    let isActive = true;
+    const maxConcurrentLoads = 8;
+    const loadedImages = Array.from({ length: totalFrames }, () => new Image());
+    let nextIndex = 0;
+    let completedCount = 0;
+    let successfulCount = 0;
+    setImages(loadedImages);
 
-      for (let i = 1; i <= totalFrames; i++) {
-        const img = new Image();
-        const paddedIndex = i.toString().padStart(3, "0");
-        img.src = `/hero/ezgif-frame-${paddedIndex}.webp`;
+    const loadNextFrame = async () => {
+      while (isActive && nextIndex < totalFrames) {
+        const index = nextIndex++;
+        const img = loadedImages[index];
+        const paddedIndex = (index + 1).toString().padStart(3, "0");
+        img.decoding = "async";
 
-        const index = i - 1;
-        const handleLoad = (isOk: boolean) => {
-          loadedCount++;
-          if (isOk) {
-            loadedFlagsRef.current[index] = true;
-          }
-          setLoadProgress(Math.round((loadedCount / totalFrames) * 100));
-          if (!readyTriggeredRef.current && loadedCount >= minReadyFrames) {
-            readyTriggeredRef.current = true;
-            setLoaded(true);
-          }
-          if (loadedCount === totalFrames) {
-            setLoaded(true);
-          }
-        };
+        const isOk = await new Promise<boolean>((resolve) => {
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(false);
+          img.src = `/hero/ezgif-frame-${paddedIndex}.webp`;
+        });
 
-        img.onload = () => handleLoad(true);
-        img.onerror = () => handleLoad(false);
-        loadedImages.push(img);
+        if (!isActive) return;
+        completedCount++;
+        if (isOk) {
+          successfulCount++;
+          loadedFlagsRef.current[index] = true;
+        }
+        setLoadProgress(Math.round((completedCount / totalFrames) * 100));
+        if (!readyTriggeredRef.current && successfulCount >= minReadyFrames) {
+          readyTriggeredRef.current = true;
+          setLoaded(true);
+        }
+        if (completedCount === totalFrames) {
+          setLoaded(true);
+        }
       }
-      setImages(loadedImages);
     };
 
-    loadImages();
-  }, []);
+    void Promise.all(
+      Array.from({ length: Math.min(maxConcurrentLoads, totalFrames) }, () => loadNextFrame())
+    );
+
+    return () => {
+      isActive = false;
+      loadedImages.forEach((img) => {
+        img.onload = null;
+        img.onerror = null;
+      });
+    };
+  }, [minReadyFrames]);
 
   useEffect(() => {
     if (!loaded || !canvasRef.current || images.length === 0) return;
