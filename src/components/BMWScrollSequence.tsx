@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useScroll, useTransform, motion } from "framer-motion";
+import Lenis from "lenis";
+
+const TOTAL_FRAMES = 300;
+const MAX_CONCURRENT_LOADS = 8;
 
 export default function BMWScrollSequence() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -9,11 +13,14 @@ export default function BMWScrollSequence() {
   const [images, setImages] = useState<HTMLImageElement[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [entered, setEntered] = useState(false);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const totalFrames = 300; // Using the 300 existing webp frames in hero/
-  const minReadyFrames = Math.min(24, totalFrames); // Allow entry once this many frames are ready.
-  const loadedFlagsRef = useRef<boolean[]>(Array.from({ length: totalFrames }, () => false));
-  const readyTriggeredRef = useRef(false);
+  const [loadedCount, setLoadedCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const loadedFlagsRef = useRef<boolean[]>(Array(TOTAL_FRAMES).fill(false));
+  const failedFlagsRef = useRef<boolean[]>(Array(TOTAL_FRAMES).fill(false));
+  const frameImagesRef = useRef<Array<HTMLImageElement | null>>(Array(TOTAL_FRAMES).fill(null));
+  const framePromisesRef = useRef<Array<Promise<boolean> | null>>(Array(TOTAL_FRAMES).fill(null));
+  const retryIndicesRef = useRef<number[]>([]);
 
   // Framer motion scroll tracking
   const { scrollYProgress } = useScroll({
@@ -22,69 +29,115 @@ export default function BMWScrollSequence() {
   });
 
   // Map scroll progress to frame index
-  const frameIndex = useTransform(scrollYProgress, [0, 1], [0, totalFrames - 1]);
+  const frameIndex = useTransform(scrollYProgress, [0, 1], [0, TOTAL_FRAMES - 1]);
 
   useEffect(() => {
-    // Prevent browser auto-restoring scroll position so the user always starts at the Hero gate!
-    if (typeof window !== "undefined") {
-      if ("scrollRestoration" in window.history) {
-        window.history.scrollRestoration = "manual";
-      }
-      window.scrollTo(0, 0);
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
     }
+    window.scrollTo(0, 0);
 
-    // Keep network pressure bounded and load in frame order so the opening is
-    // ready first; remaining frames continue loading while the user scrolls.
     let isActive = true;
-    const maxConcurrentLoads = 8;
-    const loadedImages = Array.from({ length: totalFrames }, () => new Image());
-    let nextIndex = 0;
-    let completedCount = 0;
-    let successfulCount = 0;
+    const loadedImages = frameImagesRef.current.map((image) => image ?? new Image());
+    frameImagesRef.current = loadedImages;
     setImages(loadedImages);
 
-    const loadNextFrame = async () => {
-      while (isActive && nextIndex < totalFrames) {
-        const index = nextIndex++;
-        const img = loadedImages[index];
-        const paddedIndex = (index + 1).toString().padStart(3, "0");
-        img.decoding = "async";
+    const loadFrame = (index: number): Promise<boolean> => {
+      if (loadedFlagsRef.current[index]) return Promise.resolve(true);
+      const pendingLoad = framePromisesRef.current[index];
+      if (pendingLoad) return pendingLoad;
 
-        const isOk = await new Promise<boolean>((resolve) => {
-          img.onload = () => resolve(true);
-          img.onerror = () => resolve(false);
-          img.src = `/hero/ezgif-frame-${paddedIndex}.webp`;
-        });
+      const img = loadedImages[index];
+      const paddedIndex = (index + 1).toString().padStart(3, "0");
+      img.decoding = "async";
+      const load = new Promise<boolean>((resolve) => {
+        const finish = (success: boolean) => {
+          img.onload = null;
+          img.onerror = null;
+          resolve(success);
+        };
+        img.onload = () => finish(img.naturalWidth > 0);
+        img.onerror = () => finish(false);
+        img.src = `/hero/ezgif-frame-${paddedIndex}.webp`;
+      });
+      framePromisesRef.current[index] = load;
+      return load;
+    };
 
+    const indices = retryAttempt === 0
+      ? Array.from({ length: TOTAL_FRAMES }, (_, index) => index)
+      : retryIndicesRef.current;
+    let nextIndex = 0;
+    const loadWorker = async () => {
+      while (isActive && nextIndex < indices.length) {
+        const index = indices[nextIndex++];
+        const succeeded = await loadFrame(index);
         if (!isActive) return;
-        completedCount++;
-        if (isOk) {
-          successfulCount++;
-          loadedFlagsRef.current[index] = true;
-        }
-        setLoadProgress(Math.round((completedCount / totalFrames) * 100));
-        if (!readyTriggeredRef.current && successfulCount >= minReadyFrames) {
-          readyTriggeredRef.current = true;
-          setLoaded(true);
-        }
-        if (completedCount === totalFrames) {
-          setLoaded(true);
-        }
+        loadedFlagsRef.current[index] = succeeded;
+        failedFlagsRef.current[index] = !succeeded;
+        setLoadedCount(loadedFlagsRef.current.filter(Boolean).length);
       }
     };
 
-    void Promise.all(
-      Array.from({ length: Math.min(maxConcurrentLoads, totalFrames) }, () => loadNextFrame())
-    );
+    const loadAllFrames = async () => {
+      await Promise.all(
+        Array.from(
+          { length: Math.min(MAX_CONCURRENT_LOADS, indices.length) },
+          () => loadWorker(),
+        ),
+      );
+      if (!isActive) return;
+
+      const failedIndices = failedFlagsRef.current.reduce<number[]>(
+        (failures, failed, index) => {
+          if (failed) failures.push(index);
+          return failures;
+        },
+        [],
+      );
+      setFailedCount(failedIndices.length);
+      if (failedIndices.length === 0 && loadedFlagsRef.current.every(Boolean)) {
+        setLoaded(true);
+      }
+    };
+
+    void loadAllFrames();
 
     return () => {
       isActive = false;
-      loadedImages.forEach((img) => {
-        img.onload = null;
-        img.onerror = null;
-      });
     };
-  }, [minReadyFrames]);
+  }, [retryAttempt]);
+
+  useEffect(() => {
+    if (!loaded) return;
+
+    const lenis = new Lenis({ autoRaf: true, respectReducedMotion: true });
+    document.documentElement.removeAttribute("data-sequence-loading");
+    return () => {
+      lenis.destroy();
+      document.documentElement.removeAttribute("data-sequence-loading");
+    };
+  }, [loaded]);
+
+  const retryFailedFrames = () => {
+    const failedIndices = failedFlagsRef.current.reduce<number[]>(
+      (failures, failed, index) => {
+        if (failed) failures.push(index);
+        return failures;
+      },
+      [],
+    );
+    if (failedIndices.length === 0) return;
+
+    retryIndicesRef.current = failedIndices;
+    failedIndices.forEach((index) => {
+      failedFlagsRef.current[index] = false;
+      framePromisesRef.current[index] = null;
+      frameImagesRef.current[index]?.removeAttribute("src");
+    });
+    setFailedCount(0);
+    setRetryAttempt((attempt) => attempt + 1);
+  };
 
   useEffect(() => {
     if (!loaded || !canvasRef.current || images.length === 0) return;
@@ -101,7 +154,7 @@ export default function BMWScrollSequence() {
     };
 
     const renderFrame = (index: number) => {
-      const idx = Math.min(totalFrames - 1, Math.max(0, Math.floor(index)));
+      const idx = Math.min(TOTAL_FRAMES - 1, Math.max(0, Math.floor(index)));
       let drawIndex = idx;
       while (drawIndex > 0 && !loadedFlagsRef.current[drawIndex]) {
         drawIndex--;
@@ -180,7 +233,7 @@ export default function BMWScrollSequence() {
 
         {/* Content Layer (Canvas + UI) */}
         <div className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ${entered ? "opacity-100" : "opacity-0"}`}>
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
+          <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 w-full h-full object-cover" />
 
           {entered && (
             <div className="absolute inset-0 pointer-events-none p-8 md:p-16 lg:p-24 w-full h-full">
@@ -237,12 +290,13 @@ export default function BMWScrollSequence() {
 
         {/* Loading / Gate Layer */}
         <div
+          aria-busy={!loaded && failedCount === 0}
           className={`absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050505] text-white transition-opacity duration-1000 ${entered ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"
             }`}
         >
           {/* Authentic BMW SVG Logo */}
           <div className="mb-12 drop-shadow-xl relative hover:scale-105 transition-transform duration-700">
-            <svg width="120" height="120" viewBox="0 0 100 100">
+            <svg width="120" height="120" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
               {/* Outer ring */}
               <circle cx="50" cy="50" r="48" fill="#050505" stroke="#ccc" strokeWidth="3" />
               <circle cx="50" cy="50" r="32" fill="#050505" stroke="#ccc" strokeWidth="1" />
@@ -260,17 +314,44 @@ export default function BMWScrollSequence() {
 
           {!loaded ? (
             <div className="flex flex-col items-center gap-4 transition-all">
-              <div className="w-8 h-8 md:w-10 md:h-10 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              <p className="text-xs md:text-sm tracking-widest uppercase text-white/50 animate-pulse mt-4">
-                Engine Starting... {loadProgress}%
-              </p>
+              {failedCount === 0 ? (
+                <>
+                  <div aria-hidden="true" className="w-8 h-8 md:w-10 md:h-10 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <div
+                    className="w-56 h-1 overflow-hidden bg-white/15"
+                    role="progressbar"
+                    aria-label="Sequence frame loading progress"
+                    aria-valuemin={0}
+                    aria-valuemax={TOTAL_FRAMES}
+                    aria-valuenow={loadedCount}
+                  >
+                    <div className="h-full bg-white transition-[width] duration-200" style={{ width: `${(loadedCount / TOTAL_FRAMES) * 100}%` }} />
+                  </div>
+                  <p className="text-xs md:text-sm tracking-widest uppercase text-white/50 mt-4">
+                    Engine Starting... {Math.floor((loadedCount / TOTAL_FRAMES) * 100)}% ({loadedCount} of {TOTAL_FRAMES} frames ready)
+                  </p>
+                </>
+              ) : (
+                <div role="alert" className="flex max-w-md flex-col items-center gap-4 px-6 text-center">
+                  <p className="text-sm text-white/80">
+                    {failedCount} {failedCount === 1 ? "frame could" : "frames could"} not be loaded. The experience is still paused at {Math.floor((loadedCount / TOTAL_FRAMES) * 100)}%.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={retryFailedFrames}
+                    className="rounded-sm border border-white/40 px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-white hover:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                  >
+                    Retry failed frames
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <motion.button
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               onClick={handleEnter}
-              className="px-10 py-4 bg-white text-black font-semibold uppercase tracking-[0.2em] text-xs md:text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_60px_rgba(255,255,255,0.3)] rounded-sm"
+              className="px-10 py-4 bg-white text-black font-semibold uppercase tracking-[0.2em] text-xs md:text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_60px_rgba(255,255,255,0.3)] rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
             >
               Start Experience
             </motion.button>

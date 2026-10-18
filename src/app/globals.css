@@ -21,6 +21,13 @@ body {
   overflow-x: hidden;
 }
 
+html[data-sequence-loading="true"],
+html[data-sequence-loading="true"] body {
+  height: 100%;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
 h1, h2, h3, h4, h5, h6 {
   color: var(--foreground-heading);
   letter-spacing: -0.02em;

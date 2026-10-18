@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import "lenis/dist/lenis.css";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,13 +27,30 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      data-sequence-loading="true"
     >
       <body className="min-h-full flex flex-col">
         <script
           dangerouslySetInnerHTML={{
             __html: `
               if (typeof window !== 'undefined') {
-                // Instantly block browser scroll cache before React even paints!
+                const isSequenceLoading = () => document.documentElement.dataset.sequenceLoading === 'true';
+                const preventScroll = (event) => {
+                  if (isSequenceLoading()) event.preventDefault();
+                };
+                // Lock every user-driven scroll input while frames are loading.
+                window.addEventListener('wheel', preventScroll, { capture: true, passive: false });
+                window.addEventListener('touchmove', preventScroll, { capture: true, passive: false });
+                window.addEventListener('keydown', (event) => {
+                  const target = event.target;
+                  const spaceActivatesControl = event.key === ' ' && target instanceof HTMLElement && target.closest('button, a, input, textarea, select, [contenteditable="true"], [role="button"]');
+                  if (isSequenceLoading() && !spaceActivatesControl && [' ', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
+                    event.preventDefault();
+                  }
+                }, true);
+                window.addEventListener('scroll', () => {
+                  if (isSequenceLoading() && window.scrollY !== 0) window.scrollTo(0, 0);
+                }, { passive: true });
                 window.history.scrollRestoration = 'manual';
                 window.scrollTo(0, 0);
               }
